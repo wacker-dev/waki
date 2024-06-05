@@ -1,0 +1,20 @@
+[workspace]
+resolver = "2"
+members = [
+    "waki",
+    "waki-macros",
+]
+
+[workspace.package]
+version = "0.1.0"
+authors = ["Xinzhao Xu"]
+edition = "2021"
+categories = ["wasm"]
+keywords = ["webassembly", "wasm", "wasi"]
+repository = "https://github.com/wacker-dev/waki"
+license = "Apache-2.0"
+description = "An HTTP library for building Web apps with WASI API"
+readme = "README.md"
+
+[workspace.dependencies]
+waki-macros = { path = "waki-macros", version = "0.1.0" }

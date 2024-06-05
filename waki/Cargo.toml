@@ -1,0 +1,22 @@
+[package]
+name = "waki"
+readme.workspace = true
+description.workspace = true
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+categories.workspace = true
+keywords.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+waki-macros.workspace = true
+
+anyhow = "1.0.86"
+wit-bindgen = "0.26.0"
+url = "2.5.0"
+
+[build-dependencies]
+wit-deps = "0.3.1"
+anyhow = "1.0.86"
