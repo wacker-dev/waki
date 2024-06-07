@@ -1,0 +1,9 @@
+[package]
+name = "test-programs"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+waki = { path = "../waki", features = ["json"] }
+serde = { workspace = true, features = ["derive"] }

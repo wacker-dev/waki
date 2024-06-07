@@ -1,22 +1,98 @@
 use crate::{
-    bindings::wasi::{
-        http::types::{IncomingBody, IncomingRequest, InputStream, Scheme},
-        io::streams::StreamError,
+    bindings::wasi::http::{
+        outgoing_handler,
+        types::{IncomingRequest, OutgoingBody, OutgoingRequest, RequestOptions, Scheme},
     },
-    Method,
+    body::Body,
+    Method, Response,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Error, Result};
+use serde::Serialize;
 use std::collections::HashMap;
+use std::time::Duration;
 use url::Url;
 
+pub struct RequestBuilder {
+    // all errors generated while building the request will be deferred and returned when `send` the request.
+    pub(crate) inner: Result<Request>,
+}
+
+impl RequestBuilder {
+    pub fn new(method: Method, url: &str) -> Self {
+        Self {
+            inner: Url::parse(url)
+                .map_or_else(|e| Err(Error::new(e)), |url| Ok(Request::new(method, url))),
+        }
+    }
+
+    /// Modify the query string of the Request URL.
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use waki::Client;
+    /// # fn run() -> Result<()> {
+    /// let resp = Client::new().get("https://httpbin.org/get")
+    ///     .query(&[("a", "b"), ("c", "d")])
+    ///     .send()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn query<T: Serialize + ?Sized>(mut self, query: &T) -> Self {
+        let mut err = None;
+        if let Ok(ref mut req) = self.inner {
+            let mut pairs = req.url.query_pairs_mut();
+            let serializer = serde_urlencoded::Serializer::new(&mut pairs);
+            if let Err(e) = query.serialize(serializer) {
+                err = Some(e);
+            }
+        }
+        if let Some(e) = err {
+            self.inner = Err(e.into());
+        }
+        self
+    }
+
+    /// Set the timeout for the initial connect to the HTTP Server.
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use std::time::Duration;
+    /// # use waki::Client;
+    /// # fn run() -> Result<()> {
+    /// let resp = Client::new().post("https://httpbin.org/post")
+    ///     .connect_timeout(Duration::from_secs(5))
+    ///     .send()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn connect_timeout(mut self, timeout: Duration) -> Self {
+        if let Ok(ref mut req) = self.inner {
+            req.connect_timeout = Some(timeout.as_nanos() as u64);
+        }
+        self
+    }
+
+    /// Build the Request.
+    pub fn build(self) -> Result<Request> {
+        self.inner
+    }
+
+    /// Send the Request, returning a [`Response`].
+    pub fn send(self) -> Result<Response> {
+        match self.inner {
+            Ok(req) => req.send(),
+            Err(e) => Err(e),
+        }
+    }
+}
+
 pub struct Request {
-    url: Url,
     method: Method,
-    headers: HashMap<String, String>,
-    // input-stream resource is a child: it must be dropped before the parent incoming-body is dropped
-    input_stream: InputStream,
-    _incoming_body: IncomingBody,
+    url: Url,
+    pub(crate) headers: HashMap<String, String>,
+    pub(crate) body: Body,
+    connect_timeout: Option<u64>,
 }
 
 impl From<IncomingRequest> for Request {
@@ -35,31 +111,36 @@ impl From<IncomingRequest> for Request {
         ))
         .unwrap();
 
-        let headers_handle = req.headers();
-        let headers: HashMap<String, String> = headers_handle
-            .entries()
-            .into_iter()
-            .map(|(key, value)| (key, String::from_utf8_lossy(&value).to_string()))
-            .collect();
-        drop(headers_handle);
-
+        let headers = req.headers_map();
         // The consume() method can only be called once
         let incoming_body = req.consume().unwrap();
         drop(req);
 
-        // The stream() method can only be called once
-        let input_stream = incoming_body.stream().unwrap();
         Self {
-            url,
             method,
+            url,
             headers,
-            input_stream,
-            _incoming_body: incoming_body,
+            body: Body::Stream(incoming_body.into()),
+            connect_timeout: None,
         }
     }
 }
 
 impl Request {
+    pub fn new(method: Method, url: Url) -> Self {
+        Self {
+            method,
+            url,
+            headers: HashMap::new(),
+            body: Body::Bytes(vec![]),
+            connect_timeout: None,
+        }
+    }
+
+    pub fn builder(method: Method, url: &str) -> RequestBuilder {
+        RequestBuilder::new(method, url)
+    }
+
     /// Get the full URL of the request.
     pub fn url(&self) -> Url {
         self.url.clone()
@@ -81,30 +162,61 @@ impl Request {
         query_pairs.into_owned().collect()
     }
 
-    /// Get the headers of the request.
-    pub fn headers(&self) -> HashMap<String, String> {
-        self.headers.clone()
-    }
+    fn send(self) -> Result<Response> {
+        let req = OutgoingRequest::new(self.headers.try_into()?);
+        req.set_method(&self.method)
+            .map_err(|()| anyhow!("failed to set method"))?;
 
-    /// Get a chunk of the request body.
-    ///
-    /// It will block until at least one byte can be read or the stream is closed.
-    pub fn chunk(&self, len: u64) -> Result<Option<Vec<u8>>> {
-        match self.input_stream.blocking_read(len) {
-            Ok(c) => Ok(Some(c)),
-            Err(StreamError::Closed) => Ok(None),
-            Err(e) => Err(anyhow!("input_stream read failed: {e:?}"))?,
-        }
-    }
+        let scheme = match self.url.scheme() {
+            "http" => Scheme::Http,
+            "https" => Scheme::Https,
+            other => Scheme::Other(other.to_string()),
+        };
+        req.set_scheme(Some(&scheme))
+            .map_err(|()| anyhow!("failed to set scheme"))?;
 
-    /// Get the full request body.
-    ///
-    /// It will block until the stream is closed.
-    pub fn body(self) -> Result<Vec<u8>> {
-        let mut body = Vec::new();
-        while let Some(mut chunk) = self.chunk(1024 * 1024)? {
-            body.append(&mut chunk);
+        req.set_authority(Some(self.url.authority()))
+            .map_err(|()| anyhow!("failed to set authority"))?;
+
+        let path = match self.url.query() {
+            Some(query) => format!("{}?{query}", self.url.path()),
+            None => self.url.path().to_string(),
+        };
+        req.set_path_with_query(Some(&path))
+            .map_err(|()| anyhow!("failed to set path_with_query"))?;
+
+        let options = RequestOptions::new();
+        options
+            .set_connect_timeout(self.connect_timeout)
+            .map_err(|()| anyhow!("failed to set connect_timeout"))?;
+
+        let outgoing_body = req
+            .body()
+            .map_err(|_| anyhow!("outgoing request write failed"))?;
+        let body = self.body.bytes()?;
+        if !body.is_empty() {
+            let request_body = outgoing_body
+                .write()
+                .map_err(|_| anyhow!("outgoing request write failed"))?;
+            request_body.blocking_write_and_flush(&body)?;
         }
-        Ok(body)
+        OutgoingBody::finish(outgoing_body, None)?;
+
+        let future_response = outgoing_handler::handle(req, Some(options))?;
+        let incoming_response = match future_response.get() {
+            Some(result) => result.map_err(|()| anyhow!("response already taken"))?,
+            None => {
+                let pollable = future_response.subscribe();
+                pollable.block();
+
+                future_response
+                    .get()
+                    .expect("incoming response available")
+                    .map_err(|()| anyhow!("response already taken"))?
+            }
+        }?;
+        drop(future_response);
+
+        Ok(incoming_response.into())
     }
 }

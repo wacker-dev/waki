@@ -1,13 +1,55 @@
-use crate::bindings::wasi::http::types::{
-    Headers, OutgoingBody, OutgoingResponse, ResponseOutparam,
+use crate::{
+    bindings::wasi::http::types::{
+        IncomingResponse, OutgoingBody, OutgoingResponse, ResponseOutparam,
+    },
+    body::Body,
+    ErrorCode,
 };
 
+use anyhow::Result;
 use std::collections::HashMap;
 
+pub struct ResponseBuilder {
+    // all errors generated while building the response will be deferred.
+    pub(crate) inner: Result<Response>,
+}
+
+impl Default for ResponseBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ResponseBuilder {
+    pub fn new() -> Self {
+        Self {
+            inner: Ok(Response::new()),
+        }
+    }
+
+    /// Set the status code for the response.
+    ///
+    /// Default value: 200.
+    pub fn status_code(mut self, status_code: u16) -> Self {
+        if let Ok(ref mut resp) = self.inner {
+            resp.status_code = status_code;
+        }
+        self
+    }
+
+    /// Build the Response.
+    pub fn build(self) -> Result<Response, ErrorCode> {
+        match self.inner {
+            Ok(inner) => Ok(inner),
+            Err(e) => Err(ErrorCode::InternalError(Some(e.to_string()))),
+        }
+    }
+}
+
 pub struct Response {
-    headers: HashMap<String, String>,
+    pub(crate) headers: HashMap<String, String>,
+    pub(crate) body: Body,
     status_code: u16,
-    body: Option<Vec<u8>>,
 }
 
 impl Default for Response {
@@ -16,99 +58,51 @@ impl Default for Response {
     }
 }
 
+impl From<IncomingResponse> for Response {
+    fn from(incoming_response: IncomingResponse) -> Self {
+        let status_code = incoming_response.status();
+        let headers = incoming_response.headers_map();
+        // The consume() method can only be called once
+        let incoming_body = incoming_response.consume().unwrap();
+        drop(incoming_response);
+
+        Self {
+            headers,
+            status_code,
+            body: Body::Stream(incoming_body.into()),
+        }
+    }
+}
+
 impl Response {
     pub fn new() -> Self {
         Self {
-            body: None,
             headers: HashMap::new(),
             status_code: 200,
+            body: Body::Bytes(vec![]),
         }
     }
 
-    /// Add a header to the response.
-    ///
-    /// ```
-    /// use waki::{handler, Request, Response};
-    ///
-    /// #[handler]
-    /// fn hello(req: Request) -> Response {
-    ///     Response::new().header("Content-Type", "application/json")
-    /// }
-    /// ```
-    pub fn header<S: Into<String>>(mut self, key: S, value: S) -> Self {
-        self.headers.insert(key.into(), value.into());
-        self
+    pub fn builder() -> ResponseBuilder {
+        ResponseBuilder::new()
     }
 
-    /// Add a set of headers to the response.
-    ///
-    /// ```
-    /// use waki::{handler, Request, Response};
-    ///
-    /// #[handler]
-    /// fn hello(req: Request) -> Response {
-    ///     Response::new().headers([("Content-Type", "application/json"), ("Accept", "*/*")])
-    /// }
-    /// ```
-    pub fn headers<S, I>(mut self, headers: I) -> Self
-    where
-        S: Into<String>,
-        I: IntoIterator<Item = (S, S)>,
-    {
-        self.headers
-            .extend(headers.into_iter().map(|(k, v)| (k.into(), v.into())));
-        self
-    }
-
-    /// Set the status code for the response.
-    ///
-    /// Default value: 200.
-    ///
-    /// ```
-    /// use waki::{handler, Request, Response};
-    ///
-    /// #[handler]
-    /// fn hello(req: Request) -> Response {
-    ///     Response::new().status_code(500).body(b"error")
-    /// }
-    /// ```
-    pub fn status_code(mut self, status_code: u16) -> Self {
-        self.status_code = status_code;
-        self
-    }
-
-    /// Set the response body.
-    ///
-    /// ```
-    /// use waki::{handler, Request, Response};
-    ///
-    /// #[handler]
-    /// fn hello(req: Request) -> Response {
-    ///     Response::new().body(b"Hello, WASI!")
-    /// }
-    /// ```
-    pub fn body(mut self, data: &[u8]) -> Self {
-        self.body = Some(data.into());
-        self
+    /// Get the status code of the response.
+    pub fn status_code(&self) -> u16 {
+        self.status_code
     }
 }
 
 pub fn handle_response(response_out: ResponseOutparam, response: Response) {
-    let entries = response
-        .headers
-        .into_iter()
-        .map(|(k, v)| (k, v.into()))
-        .collect::<Vec<_>>();
-    let headers = Headers::from_list(&entries).unwrap();
-
-    let outgoing_response = OutgoingResponse::new(headers);
+    let outgoing_response = OutgoingResponse::new(response.headers.try_into().unwrap());
     outgoing_response
         .set_status_code(response.status_code)
         .unwrap();
     let outgoing_body = outgoing_response.body().unwrap();
     ResponseOutparam::set(response_out, Ok(outgoing_response));
 
-    if let Some(body) = response.body {
+    let body = response.body.bytes().unwrap();
+    if !body.is_empty() {
         let out = outgoing_body.write().unwrap();
         out.blocking_write_and_flush(&body).unwrap();
     }
