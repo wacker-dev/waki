@@ -1,0 +1,19 @@
+[package]
+name = "http-server"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[package.metadata.component]
+adapter = "wasi_snapshot_preview1.proxy.wasm"
+
+[dependencies]
+waki = "0.2.0"
+
+# reduce wasm binary size
+[profile.release]
+lto = true
+strip = "symbols"

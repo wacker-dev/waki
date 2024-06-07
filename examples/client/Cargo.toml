@@ -1,0 +1,17 @@
+[package]
+name = "http-client"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata.component]
+adapter = "wasi_snapshot_preview1.command.wasm"
+
+[dependencies]
+waki = { version = "0.2.0", features = ["json"] }
+serde = { version = "1.0.202", features = ["derive"] }
+
+# reduce wasm binary size
+[profile.release]
+lto = true
+strip = "symbols"
