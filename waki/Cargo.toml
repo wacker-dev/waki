@@ -10,13 +10,26 @@ keywords.workspace = true
 repository.workspace = true
 license.workspace = true
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [dependencies]
 waki-macros.workspace = true
 
-anyhow = "1.0.86"
+anyhow.workspace = true
+serde.workspace = true
 wit-bindgen = "0.26.0"
 url = "2.5.0"
+serde_urlencoded = "0.7.1"
+serde_json = { version = "1.0.117", optional = true }
+
+[features]
+json = ["dep:serde_json"]
 
 [build-dependencies]
+anyhow.workspace = true
 wit-deps = "0.3.1"
-anyhow = "1.0.86"
+
+[dev-dependencies]
+test-programs-artifacts = { path = "../test-programs/artifacts" }

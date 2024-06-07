@@ -16,7 +16,10 @@ pub fn handler(input: ItemFn) -> Result<TokenStream> {
 
         impl ::waki::bindings::exports::wasi::http::incoming_handler::Guest for Component {
             fn handle(request: ::waki::bindings::wasi::http::types::IncomingRequest, response_out: ::waki::bindings::wasi::http::types::ResponseOutparam) {
-                ::waki::handle_response(response_out, #fn_name(request.into()))
+                match #fn_name(request.into()) {
+                    Ok(resp) => ::waki::handle_response(response_out, resp),
+                    Err(e) => ::waki::bindings::wasi::http::types::ResponseOutparam::set(response_out, Err(e)),
+                }
             }
         }
     }))

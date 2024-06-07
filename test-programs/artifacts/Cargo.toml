@@ -1,0 +1,11 @@
+[package]
+name = "test-programs-artifacts"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[build-dependencies]
+anyhow.workspace = true
+cargo_metadata = "0.18.1"
+wit-component = "0.208.1"
+heck = "0.5.0"

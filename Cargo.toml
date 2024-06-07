@@ -3,18 +3,22 @@ resolver = "2"
 members = [
     "waki",
     "waki-macros",
+    "test-programs",
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Xinzhao Xu"]
 edition = "2021"
 categories = ["wasm"]
 keywords = ["webassembly", "wasm", "wasi"]
 repository = "https://github.com/wacker-dev/waki"
 license = "Apache-2.0"
-description = "An HTTP library for building Web apps with WASI API"
+description = "HTTP client and server library for WASI"
 readme = "README.md"
 
 [workspace.dependencies]
-waki-macros = { path = "waki-macros", version = "0.1.0" }
+waki-macros = { path = "waki-macros", version = "0.2.0" }
+
+anyhow = "1.0.86"
+serde = "1.0.201"

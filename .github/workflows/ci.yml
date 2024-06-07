@@ -15,8 +15,16 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@1.78.0
         with:
+          targets: wasm32-wasi
           components: clippy, rustfmt
       - name: cargo fmt
         run: cargo fmt --all -- --check
       - name: cargo clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Install wasmtime
+        uses: bytecodealliance/actions/wasmtime/setup@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          version: "v21.0.1"
+      - name: cargo test
+        run: cargo test
