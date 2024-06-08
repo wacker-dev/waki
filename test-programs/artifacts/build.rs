@@ -41,7 +41,17 @@ fn main() -> Result<()> {
             .join("debug")
             .join(format!("{target}.wasm"));
 
-        let path = compile_component(&wasm)?;
+        let adapter = match target.as_str() {
+            s if s.starts_with("client_") => {
+                include_bytes!("wasi_snapshot_preview1.command.wasm").to_vec()
+            }
+            s if s.starts_with("server_") => {
+                include_bytes!("wasi_snapshot_preview1.proxy.wasm").to_vec()
+            }
+            other => panic!("unknown type {other}"),
+        };
+
+        let path = compile_component(&wasm, &adapter)?;
         generated_code += &format!("pub const {camel}_COMPONENT: &str = {path:?};\n");
     }
 
@@ -51,15 +61,12 @@ fn main() -> Result<()> {
 }
 
 // Compile a component, return the path of the binary
-fn compile_component(wasm: &Path) -> Result<PathBuf> {
+fn compile_component(wasm: &Path, adapter: &[u8]) -> Result<PathBuf> {
     let module = fs::read(wasm)?;
     let component = ComponentEncoder::default()
         .module(module.as_slice())?
         .validate(true)
-        .adapter(
-            "wasi_snapshot_preview1",
-            include_bytes!("wasi_snapshot_preview1.command.wasm"),
-        )?
+        .adapter("wasi_snapshot_preview1", adapter)?
         .encode()?;
     let out_dir = wasm.parent().unwrap();
     let stem = wasm.file_stem().unwrap().to_str().unwrap();
