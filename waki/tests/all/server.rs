@@ -1,12 +1,10 @@
-mod common;
-
-use crate::common::run_wasi_http;
+use super::run_wasi_http;
 
 use anyhow::Result;
 use wasmtime_wasi_http::body::HyperIncomingBody;
 
-#[tokio::test]
-async fn server_hello_query() -> Result<()> {
+#[tokio::test(flavor = "multi_thread")]
+async fn query() -> Result<()> {
     let req = hyper::Request::builder()
         .uri("http://localhost?name=ia")
         .body(HyperIncomingBody::default())?;

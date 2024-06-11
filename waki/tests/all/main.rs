@@ -1,3 +1,6 @@
+mod client;
+mod server;
+
 use anyhow::{Context, Result};
 use http_body_util::Collected;
 use hyper::body::Bytes;
@@ -5,9 +8,10 @@ use wasmtime::{
     component::{Component, Linker, ResourceTable},
     Config, Engine, Store,
 };
-use wasmtime_wasi::{WasiCtx, WasiCtxBuilder, WasiView};
+use wasmtime_wasi::{bindings::Command, WasiCtx, WasiCtxBuilder, WasiView};
 use wasmtime_wasi_http::{
-    bindings::http::types::ErrorCode, body::HyperIncomingBody, WasiHttpCtx, WasiHttpView,
+    bindings::http::types::ErrorCode, body::HyperIncomingBody, proxy::Proxy, WasiHttpCtx,
+    WasiHttpView,
 };
 
 struct Ctx {
@@ -35,11 +39,7 @@ impl WasiHttpView for Ctx {
     }
 }
 
-// ref: https://github.com/bytecodealliance/wasmtime/blob/af59c4d568d487b7efbb49d7d31a861e7c3933a6/crates/wasi-http/tests/all/main.rs#L129
-pub async fn run_wasi_http(
-    component_filename: &str,
-    req: hyper::Request<HyperIncomingBody>,
-) -> Result<Result<hyper::Response<Collected<Bytes>>, ErrorCode>> {
+fn new_component(component_filename: &str) -> Result<(Store<Ctx>, Component, Linker<Ctx>)> {
     let mut config = Config::new();
     config.wasm_backtrace_details(wasmtime::WasmBacktraceDetails::Enable);
     config.wasm_component_model(true);
@@ -54,12 +54,21 @@ pub async fn run_wasi_http(
         http: WasiHttpCtx::new(),
     };
 
-    let mut store = Store::new(&engine, ctx);
+    let store = Store::new(&engine, ctx);
     let mut linker = Linker::new(&engine);
-    wasmtime_wasi_http::proxy::add_to_linker(&mut linker)?;
-    let (proxy, _) =
-        wasmtime_wasi_http::proxy::Proxy::instantiate_async(&mut store, &component, &linker)
-            .await?;
+    wasmtime_wasi::add_to_linker_async(&mut linker)?;
+    wasmtime_wasi_http::proxy::add_only_http_to_linker(&mut linker)?;
+    Ok((store, component, linker))
+}
+
+// ref: https://github.com/bytecodealliance/wasmtime/blob/af59c4d568d487b7efbb49d7d31a861e7c3933a6/crates/wasi-http/tests/all/main.rs#L129
+pub async fn run_wasi_http(
+    component_filename: &str,
+    req: hyper::Request<HyperIncomingBody>,
+) -> Result<Result<hyper::Response<Collected<Bytes>>, ErrorCode>> {
+    let (mut store, component, linker) = new_component(component_filename)?;
+
+    let (proxy, _) = Proxy::instantiate_async(&mut store, &component, &linker).await?;
 
     let req = store.data_mut().new_incoming_request(req)?;
 
@@ -94,4 +103,15 @@ pub async fn run_wasi_http(
     handle.await.context("Component execution")?;
 
     Ok(resp.expect("wasm never called set-response-outparam"))
+}
+
+pub async fn run_wasi(component_filename: &str) -> Result<()> {
+    let (mut store, component, linker) = new_component(component_filename)?;
+
+    let (command, _) = Command::instantiate_async(&mut store, &component, &linker).await?;
+    command
+        .wasi_cli_run()
+        .call_run(&mut store)
+        .await?
+        .map_err(|()| anyhow::anyhow!("run returned a failure"))
 }
