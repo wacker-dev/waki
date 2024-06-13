@@ -3,11 +3,11 @@ use crate::{
         IncomingResponse, OutgoingBody, OutgoingResponse, ResponseOutparam,
     },
     body::Body,
+    header::HeaderMap,
     ErrorCode,
 };
 
-use anyhow::Result;
-use std::collections::HashMap;
+use anyhow::{Error, Result};
 
 pub struct ResponseBuilder {
     // all errors generated while building the response will be deferred.
@@ -47,7 +47,7 @@ impl ResponseBuilder {
 }
 
 pub struct Response {
-    pub(crate) headers: HashMap<String, String>,
+    pub(crate) headers: HeaderMap,
     pub(crate) body: Body,
     status_code: u16,
 }
@@ -58,26 +58,28 @@ impl Default for Response {
     }
 }
 
-impl From<IncomingResponse> for Response {
-    fn from(incoming_response: IncomingResponse) -> Self {
+impl TryFrom<IncomingResponse> for Response {
+    type Error = Error;
+
+    fn try_from(incoming_response: IncomingResponse) -> std::result::Result<Self, Self::Error> {
         let status_code = incoming_response.status();
-        let headers = incoming_response.headers_map();
+        let headers = incoming_response.headers_map()?;
         // The consume() method can only be called once
         let incoming_body = incoming_response.consume().unwrap();
         drop(incoming_response);
 
-        Self {
+        Ok(Self {
             headers,
             status_code,
             body: Body::Stream(incoming_body.into()),
-        }
+        })
     }
 }
 
 impl Response {
     pub fn new() -> Self {
         Self {
-            headers: HashMap::new(),
+            headers: HeaderMap::new(),
             status_code: 200,
             body: Body::Bytes(vec![]),
         }

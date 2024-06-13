@@ -4,7 +4,8 @@ use crate::{
         types::{IncomingRequest, OutgoingBody, OutgoingRequest, RequestOptions, Scheme},
     },
     body::Body,
-    Method, Response,
+    header::HeaderMap,
+    ErrorCode, Method, Response,
 };
 
 use anyhow::{anyhow, Error, Result};
@@ -44,11 +45,11 @@ impl RequestBuilder {
             let mut pairs = req.url.query_pairs_mut();
             let serializer = serde_urlencoded::Serializer::new(&mut pairs);
             if let Err(e) = query.serialize(serializer) {
-                err = Some(e);
+                err = Some(e.into());
             }
         }
         if let Some(e) = err {
-            self.inner = Err(e.into());
+            self.inner = Err(e);
         }
         self
     }
@@ -90,13 +91,15 @@ impl RequestBuilder {
 pub struct Request {
     method: Method,
     url: Url,
-    pub(crate) headers: HashMap<String, String>,
+    pub(crate) headers: HeaderMap,
     pub(crate) body: Body,
     connect_timeout: Option<u64>,
 }
 
-impl From<IncomingRequest> for Request {
-    fn from(req: IncomingRequest) -> Self {
+impl TryFrom<IncomingRequest> for Request {
+    type Error = ErrorCode;
+
+    fn try_from(req: IncomingRequest) -> std::result::Result<Self, Self::Error> {
         let scheme = match req.scheme().unwrap_or(Scheme::Http) {
             Scheme::Http => "http".into(),
             Scheme::Https => "https".into(),
@@ -111,18 +114,20 @@ impl From<IncomingRequest> for Request {
         ))
         .unwrap();
 
-        let headers = req.headers_map();
+        let headers = req
+            .headers_map()
+            .map_err(|e| ErrorCode::InternalError(Some(e.to_string())))?;
         // The consume() method can only be called once
         let incoming_body = req.consume().unwrap();
         drop(req);
 
-        Self {
+        Ok(Self {
             method,
             url,
             headers,
             body: Body::Stream(incoming_body.into()),
             connect_timeout: None,
-        }
+        })
     }
 }
 
@@ -131,7 +136,7 @@ impl Request {
         Self {
             method,
             url,
-            headers: HashMap::new(),
+            headers: HeaderMap::new(),
             body: Body::Bytes(vec![]),
             connect_timeout: None,
         }
@@ -217,6 +222,6 @@ impl Request {
         }?;
         drop(future_response);
 
-        Ok(incoming_response.into())
+        incoming_response.try_into()
     }
 }

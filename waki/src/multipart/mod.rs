@@ -1,10 +1,11 @@
 mod constants;
 pub(crate) mod parser;
 
-use anyhow::Result;
+use crate::header::{HeaderMap, HeaderValue, IntoHeaderName, CONTENT_DISPOSITION, CONTENT_TYPE};
+
+use anyhow::{Error, Result};
 use mime::Mime;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
@@ -60,10 +61,11 @@ impl Form {
         for part in self.parts {
             buf.extend_from_slice(
                 format!(
-                    "{}{}{}Content-Disposition: form-data; name={}",
+                    "{}{}{}{}: form-data; name={}",
                     constants::BOUNDARY_EXT,
                     self.boundary,
                     constants::CRLF,
+                    CONTENT_DISPOSITION,
                     part.key
                 )
                 .as_bytes(),
@@ -73,11 +75,12 @@ impl Form {
             }
             if let Some(mime) = part.mime {
                 buf.extend_from_slice(
-                    format!("{}Content-Type: {}", constants::CRLF, mime).as_bytes(),
+                    format!("{}{}: {}", constants::CRLF, CONTENT_TYPE, mime).as_bytes(),
                 );
             }
-            for (k, v) in part.headers {
-                buf.extend_from_slice(format!("{}{}: {}", constants::CRLF, k, v).as_bytes());
+            for (k, v) in part.headers.iter() {
+                buf.extend_from_slice(format!("{}{}: ", constants::CRLF, k).as_bytes());
+                buf.extend_from_slice(v.as_bytes());
             }
 
             buf.extend_from_slice(constants::CRLF_CRLF.as_bytes());
@@ -110,7 +113,7 @@ pub struct Part {
     pub value: Vec<u8>,
     pub filename: Option<String>,
     pub mime: Option<Mime>,
-    pub headers: HashMap<String, String>,
+    pub headers: HeaderMap,
 }
 
 impl Part {
@@ -124,7 +127,7 @@ impl Part {
             value: value.into(),
             filename: None,
             mime: None,
-            headers: HashMap::new(),
+            headers: HeaderMap::new(),
         }
     }
 
@@ -164,13 +167,17 @@ impl Part {
         self
     }
 
-    pub fn headers<S, I>(mut self, headers: I) -> Self
+    pub fn headers<K, V, I>(mut self, headers: I) -> Result<Self>
     where
-        S: Into<String>,
-        I: IntoIterator<Item = (S, S)>,
+        K: IntoHeaderName,
+        V: TryInto<HeaderValue>,
+        <V as TryInto<HeaderValue>>::Error: Into<Error>,
+        I: IntoIterator<Item = (K, V)>,
     {
-        self.headers
-            .extend(headers.into_iter().map(|(k, v)| (k.into(), v.into())));
-        self
+        for (key, value) in headers.into_iter() {
+            self.headers
+                .insert(key, value.try_into().map_err(|e| e.into())?);
+        }
+        Ok(self)
     }
 }
