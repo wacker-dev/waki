@@ -23,9 +23,16 @@ wit-bindgen = "0.26.0"
 url = "2.5.0"
 serde_urlencoded = "0.7.1"
 serde_json = { version = "1.0.117", optional = true }
+mime = { version = "0.3.17", optional = true }
+mime_guess = { version = "2.0.4", optional = true }
+rand = { version = "0.8.5", optional = true }
+memchr = { version = "2.7.2", optional = true }
+bytes = { version = "1.6.0", optional = true }
+httparse = { version = "1.9.3", optional = true }
 
 [features]
 json = ["dep:serde_json"]
+multipart = ["dep:mime", "dep:mime_guess", "dep:rand", "dep:memchr", "dep:bytes", "dep:httparse"]
 
 [build-dependencies]
 anyhow.workspace = true

@@ -8,7 +8,7 @@ use wasmtime::{
     component::{Component, Linker, ResourceTable},
     Config, Engine, Store,
 };
-use wasmtime_wasi::{bindings::Command, WasiCtx, WasiCtxBuilder, WasiView};
+use wasmtime_wasi::{bindings::Command, DirPerms, FilePerms, WasiCtx, WasiCtxBuilder, WasiView};
 use wasmtime_wasi_http::{
     bindings::http::types::ErrorCode, body::HyperIncomingBody, proxy::Proxy, WasiHttpCtx,
     WasiHttpView,
@@ -50,7 +50,10 @@ fn new_component(component_filename: &str) -> Result<(Store<Ctx>, Component, Lin
 
     let ctx = Ctx {
         table: ResourceTable::new(),
-        wasi: WasiCtxBuilder::new().build(),
+        wasi: WasiCtxBuilder::new()
+            .inherit_stdio()
+            .preopened_dir("./tests/all/fixtures", ".", DirPerms::READ, FilePerms::READ)?
+            .build(),
         http: WasiHttpCtx::new(),
     };
 

@@ -5,5 +5,6 @@ edition = "2021"
 publish = false
 
 [dependencies]
-waki = { path = "../waki", features = ["json"] }
+waki = { path = "../waki", features = ["json", "multipart"] }
 serde = { workspace = true, features = ["derive"] }
+mime = "0.3.17"
