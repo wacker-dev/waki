@@ -1,7 +1,10 @@
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::time::Duration;
-use waki::Client;
+use waki::{
+    multipart::{Form, Part},
+    Client,
+};
 
 #[derive(Deserialize)]
 struct Data {
@@ -12,19 +15,16 @@ struct Data {
 fn main() {
     let resp = Client::new()
         .post("https://httpbin.org/post")
-        .header("Content-Type", "multipart/form-data; boundary=boundary")
-        .body(
-            "--boundary
-Content-Disposition: form-data; name=field1
-
-value1
---boundary
-Content-Disposition: form-data; name=field2; filename=file.txt
-Content-Type: text/plain
-
-hello
---boundary--"
-                .as_bytes(),
+        .multipart(
+            Form::new()
+                .text("field1", "value1")
+                .file("field2", "file.txt")
+                .unwrap()
+                .part(
+                    Part::new("field3", "hello")
+                        .filename("file.txt")
+                        .mime(mime::TEXT_PLAIN),
+                ),
         )
         .connect_timeout(Duration::from_secs(5))
         .send()
@@ -33,5 +33,6 @@ hello
 
     let data = resp.json::<Data>().unwrap();
     assert_eq!(data.form.get("field1").unwrap(), "value1");
-    assert_eq!(data.files.get("field2").unwrap(), "hello");
+    assert_eq!(data.files.get("field2").unwrap(), "hello\n");
+    assert_eq!(data.files.get("field3").unwrap(), "hello");
 }

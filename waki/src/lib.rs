@@ -35,6 +35,9 @@
 mod body;
 mod client;
 mod header;
+#[cfg(feature = "multipart")]
+#[cfg_attr(docsrs, doc(cfg(feature = "multipart")))]
+pub mod multipart;
 mod request;
 mod response;
 
@@ -73,7 +76,9 @@ pub use self::{
 pub use waki_macros::handler;
 
 use crate::body::Body;
-use anyhow::Result;
+#[cfg(feature = "multipart")]
+use crate::multipart::{parser::parse, Form, Part};
+use anyhow::{anyhow, Result};
 use serde::Serialize;
 use std::collections::HashMap;
 
@@ -129,6 +134,33 @@ macro_rules! impl_common_get_methods {
             pub fn json<T: serde::de::DeserializeOwned>(self) -> Result<T> {
                 Ok(serde_json::from_slice(self.body()?.as_ref())?)
             }
+
+            /// Parse the body as multipart/form-data.
+            ///
+            /// # Optional
+            ///
+            /// This requires the `multipart` feature enabled.
+            #[cfg(feature = "multipart")]
+            #[cfg_attr(docsrs, doc(cfg(feature = "multipart")))]
+            pub fn multipart(self) -> Result<HashMap<String, Part>> {
+                match self.headers.get("Content-Type") {
+                    Some(header) => {
+                        let mime = header.parse::<mime::Mime>()?;
+                        let boundary = match mime.get_param(mime::BOUNDARY) {
+                            Some(v) => v.as_str(),
+                            None => {
+                                return Err(anyhow!(
+                                    "unable to find the boundary value in the Content-Type header"
+                                ))
+                            }
+                        };
+                        parse(self.body()?.as_ref(), boundary)
+                    }
+                    None => Err(anyhow!(
+                        "parse body as multipart failed, unable to find the Content-Type header"
+                    )),
+                }
+            }
         }
     )+)
 }
@@ -141,12 +173,10 @@ macro_rules! impl_common_set_methods {
             /// Add a header.
             ///
             /// ```
-            /// # use anyhow::Result;
             /// # use waki::ResponseBuilder;
-            /// # fn run() -> Result<()> {
+            /// # fn run() {
             /// # let r = ResponseBuilder::new();
             /// r.header("Content-Type", "application/json");
-            /// # Ok(())
             /// # }
             /// ```
             pub fn header<S: Into<String>>(mut self, key: S, value: S) -> Self {
@@ -159,12 +189,10 @@ macro_rules! impl_common_set_methods {
             /// Add a set of headers.
             ///
             /// ```
-            /// # use anyhow::Result;
             /// # use waki::ResponseBuilder;
-            /// # fn run() -> Result<()> {
+            /// # fn run() {
             /// # let r = ResponseBuilder::new();
             /// r.headers([("Content-Type", "application/json"), ("Accept", "*/*")]);
-            /// # Ok(())
             /// # }
             /// ```
             pub fn headers<S, I>(mut self, headers: I) -> Self
@@ -182,15 +210,13 @@ macro_rules! impl_common_set_methods {
             /// Set the body.
             ///
             /// ```
-            /// # use anyhow::Result;
             /// # use waki::ResponseBuilder;
-            /// # fn run() -> Result<()> {
+            /// # fn run() {
             /// # let r = ResponseBuilder::new();
-            /// r.body("hello".as_bytes());
-            /// # Ok(())
+            /// r.body("hello");
             /// # }
             /// ```
-            pub fn body(mut self, body: &[u8]) -> Self {
+            pub fn body<V: Into<Vec<u8>>>(mut self, body: V) -> Self {
                 if let Ok(ref mut inner) = self.inner {
                     inner.body = Body::Bytes(body.into());
                 }
@@ -204,13 +230,11 @@ macro_rules! impl_common_set_methods {
             /// This requires the `json` feature enabled.
             ///
             /// ```
-            /// # use anyhow::Result;
             /// # use std::collections::HashMap;
             /// # use waki::ResponseBuilder;
-            /// # fn run() -> Result<()> {
+            /// # fn run() {
             /// # let r = ResponseBuilder::new();
             /// r.json(&HashMap::from([("data", "hello")]));
-            /// # Ok(())
             /// # }
             /// ```
             #[cfg(feature = "json")]
@@ -234,12 +258,10 @@ macro_rules! impl_common_set_methods {
             /// Set a form body.
             ///
             /// ```
-            /// # use anyhow::Result;
             /// # use waki::ResponseBuilder;
-            /// # fn run() -> Result<()> {
+            /// # fn run() {
             /// # let r = ResponseBuilder::new();
             /// r.form(&[("a", "b"), ("c", "d")]);
-            /// # Ok(())
             /// # }
             /// ```
             pub fn form<T: Serialize + ?Sized>(mut self, form: &T) -> Self {
@@ -256,6 +278,46 @@ macro_rules! impl_common_set_methods {
                 }
                 if let Some(e) = err {
                     self.inner = Err(e);
+                }
+                self
+            }
+
+            /// Set a multipart/form-data body.
+            ///
+            /// # Optional
+            ///
+            /// This requires the `multipart` feature enabled.
+            ///
+            /// ```
+            /// # use anyhow::Result;
+            /// # use waki::ResponseBuilder;
+            /// # fn run() -> Result<()> {
+            /// # let r = ResponseBuilder::new();
+            /// let form = waki::multipart::Form::new()
+            ///     // Add a text field
+            ///     .text("key", "value")
+            ///     // And a file
+            ///     .file("file", "/path/to/file.txt")?
+            ///     // And a custom part
+            ///     .part(
+            ///         waki::multipart::Part::new("key2", "value2")
+            ///             .filename("file.txt")
+            ///             .mime_str("text/plain")?,
+            ///     );
+            ///
+            /// r.multipart(form);
+            /// # Ok(())
+            /// # }
+            /// ```
+            #[cfg(feature = "multipart")]
+            #[cfg_attr(docsrs, doc(cfg(feature = "multipart")))]
+            pub fn multipart(mut self, form: Form) -> Self {
+                if let Ok(ref mut inner) = self.inner {
+                    inner.headers.insert(
+                        "Content-Type".into(),
+                        format!("multipart/form-data; boundary={}", form.boundary()),
+                    );
+                    inner.body = Body::Bytes(form.build());
                 }
                 self
             }
