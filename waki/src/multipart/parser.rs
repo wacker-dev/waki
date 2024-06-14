@@ -1,4 +1,7 @@
-use super::{constants, Part};
+use crate::{
+    header::{HeaderMap, HeaderName, HeaderValue, CONTENT_DISPOSITION, CONTENT_TYPE},
+    multipart::{constants, Part},
+};
 
 use anyhow::{anyhow, Result};
 use bytes::{Buf, Bytes, BytesMut};
@@ -57,15 +60,15 @@ pub fn parse(body: &[u8], boundary: &str) -> Result<HashMap<String, Part>> {
         let mut headers = [httparse::EMPTY_HEADER; constants::MAX_HEADERS];
         part.headers = match httparse::parse_headers(&header_bytes, &mut headers)? {
             Status::Complete((_, raw_headers)) => {
-                let mut headers_map = HashMap::new();
+                let mut headers_map = HeaderMap::with_capacity(raw_headers.len());
                 for header in raw_headers {
                     let (k, v) = (
-                        header.name.to_string(),
-                        String::from_utf8(header.value.to_vec())?,
+                        HeaderName::try_from(header.name)?,
+                        HeaderValue::try_from(header.value)?,
                     );
-                    if k.to_uppercase() == "Content-Disposition".to_uppercase() {
+                    if k == CONTENT_DISPOSITION {
                         // can't parse it without a /
-                        let mime = format!("multipart/{}", v).parse::<mime::Mime>()?;
+                        let mime = format!("multipart/{}", v.to_str()?).parse::<mime::Mime>()?;
                         part.key = match mime.get_param("name") {
                             Some(name) => name.to_string(),
                             None => {
@@ -76,8 +79,8 @@ pub fn parse(body: &[u8], boundary: &str) -> Result<HashMap<String, Part>> {
                         };
                         part.filename = mime.get_param("filename").map(|v| v.to_string());
                     };
-                    if k.to_uppercase() == "Content-Type".to_uppercase() {
-                        part.mime = Some(v.parse()?)
+                    if k == CONTENT_TYPE {
+                        part.mime = Some(v.to_str()?.parse()?)
                     }
                     headers_map.insert(k, v);
                 }

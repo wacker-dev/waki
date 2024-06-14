@@ -8,6 +8,13 @@ async fn get_chunk() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn get_headers() {
+    run_wasi(test_programs_artifacts::CLIENT_GET_HEADERS_COMPONENT)
+        .await
+        .unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn get_with_query() {
     run_wasi(test_programs_artifacts::CLIENT_GET_WITH_QUERY_COMPONENT)
         .await
