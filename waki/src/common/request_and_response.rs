@@ -67,6 +67,11 @@ macro_rules! impl_common_get_methods {
                 Ok(serde_json::from_slice(self.body()?.as_ref())?)
             }
 
+            /// Parse the body as form data.
+            pub fn form(self) -> Result<HashMap<String, String>> {
+                Ok(serde_urlencoded::from_bytes(self.body()?.as_ref())?)
+            }
+
             /// Parse the body as multipart/form-data.
             ///
             /// # Optional
