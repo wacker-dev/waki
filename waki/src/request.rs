@@ -100,18 +100,16 @@ impl TryFrom<IncomingRequest> for Request {
     type Error = ErrorCode;
 
     fn try_from(req: IncomingRequest) -> std::result::Result<Self, Self::Error> {
-        let scheme = match req.scheme().unwrap_or(Scheme::Http) {
-            Scheme::Http => "http".into(),
-            Scheme::Https => "https".into(),
-            Scheme::Other(s) => s,
-        };
         let method = req.method();
-        let url = Url::parse(&format!(
-            "{}://{}{}",
-            scheme,
-            req.authority().unwrap_or("localhost".into()),
-            req.path_with_query().unwrap_or("/".into())
-        ))
+        let url = Url::parse(
+            format!(
+                "{}://{}{}",
+                req.scheme().unwrap_or(Scheme::Http),
+                req.authority().unwrap_or("localhost".into()),
+                req.path_with_query().unwrap_or_default()
+            )
+            .as_str(),
+        )
         .unwrap();
 
         let headers = req
@@ -157,8 +155,8 @@ impl Request {
     }
 
     /// Get the path of the request.
-    pub fn path(&self) -> String {
-        self.url.path().to_string()
+    pub fn path(&self) -> &str {
+        self.url.path()
     }
 
     /// Get the query string of the request.
@@ -172,12 +170,7 @@ impl Request {
         req.set_method(&self.method)
             .map_err(|()| anyhow!("failed to set method"))?;
 
-        let scheme = match self.url.scheme() {
-            "http" => Scheme::Http,
-            "https" => Scheme::Https,
-            other => Scheme::Other(other.to_string()),
-        };
-        req.set_scheme(Some(&scheme))
+        req.set_scheme(Some(&self.url.scheme().into()))
             .map_err(|()| anyhow!("failed to set scheme"))?;
 
         req.set_authority(Some(self.url.authority()))
