@@ -1,7 +1,10 @@
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::time::Duration;
-use waki::Client;
+use waki::{
+    multipart::{Form, Part},
+    Client,
+};
 
 #[derive(Debug, Deserialize)]
 #[allow(dead_code)]
@@ -76,19 +79,13 @@ fn main() {
     // post with file form data
     let resp = Client::new()
         .post("https://httpbin.org/post")
-        .header("Content-Type", "multipart/form-data; boundary=boundary")
-        .body(
-            "--boundary
-Content-Disposition: form-data; name=field1
-
-value1
---boundary
-Content-Disposition: form-data; name=field2; filename=file.txt
-Content-Type: text/plain
-
-hello
---boundary--"
-                .as_bytes(),
+        .multipart(
+            Form::new().text("field1", "value1").part(
+                Part::new("field2", "hello")
+                    .filename("file.txt")
+                    .mime_str("text/plain")
+                    .unwrap(),
+            ),
         )
         .connect_timeout(Duration::from_secs(5))
         .send()

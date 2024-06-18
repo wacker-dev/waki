@@ -8,7 +8,7 @@ publish = false
 adapter = "wasi_snapshot_preview1.command.wasm"
 
 [dependencies]
-waki = { version = "0.2.0", features = ["json"] }
+waki = { version = "0.3.0", features = ["json", "multipart"] }
 serde = { version = "1.0.202", features = ["derive"] }
 
 # reduce wasm binary size
