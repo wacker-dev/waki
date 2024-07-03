@@ -14,7 +14,7 @@ fn main() -> Result<()> {
     let status = Command::new("cargo")
         .arg("build")
         .arg("--package=test-programs")
-        .arg("--target=wasm32-wasi")
+        .arg("--target=wasm32-wasip1")
         .env("CARGO_TARGET_DIR", &out_dir)
         .env("CARGO_PROFILE_DEV_DEBUG", "1")
         .status()?;
@@ -37,7 +37,7 @@ fn main() -> Result<()> {
     for target in targets {
         let camel = target.to_shouty_snake_case();
         let wasm = out_dir
-            .join("wasm32-wasi")
+            .join("wasm32-wasip1")
             .join("debug")
             .join(format!("{target}.wasm"));
 
