@@ -35,10 +35,6 @@ httparse = { version = "1.9.3", optional = true }
 json = ["dep:serde_json"]
 multipart = ["dep:mime", "dep:mime_guess", "dep:rand", "dep:memchr", "dep:bytes", "dep:httparse"]
 
-[build-dependencies]
-anyhow.workspace = true
-wit-deps = "0.3.1"
-
 [dev-dependencies]
 test-programs-artifacts = { path = "../test-programs/artifacts" }
 
