@@ -17,6 +17,10 @@ jobs:
         with:
           targets: wasm32-wasip1
           components: clippy, rustfmt
+      - name: Re-vendor WIT
+        run: |
+          ./scripts/vendor-wit.sh
+          git diff --exit-code
       - name: cargo fmt
         run: cargo fmt --all -- --check
       - name: cargo clippy
