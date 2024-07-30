@@ -76,15 +76,14 @@ async fn status_code() -> Result<()> {
 }
 
 mod body {
-    use http_body_util::{BodyExt, Full};
-    use hyper::body::Bytes;
-    use wasmtime_wasi_http::body::HyperIncomingBody;
+    use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
+    use hyper::{body::Bytes, Error};
 
-    pub fn full(bytes: &'static str) -> HyperIncomingBody {
-        HyperIncomingBody::new(Full::new(Bytes::from(bytes)).map_err(|_| unreachable!()))
+    pub fn full(bytes: &'static str) -> BoxBody<Bytes, Error> {
+        BoxBody::new(Full::new(bytes.into()).map_err(|_| unreachable!()))
     }
 
-    pub fn empty() -> HyperIncomingBody {
-        HyperIncomingBody::default()
+    pub fn empty() -> BoxBody<Bytes, Error> {
+        BoxBody::new(Empty::new().map_err(|_| unreachable!()))
     }
 }
