@@ -9,3 +9,4 @@ anyhow.workspace = true
 cargo_metadata = "0.18.1"
 wit-component = "0.208.1"
 heck = "0.5.0"
+wasi-preview1-component-adapter-provider = "23.0.1"
