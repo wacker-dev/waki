@@ -43,15 +43,15 @@ fn main() -> Result<()> {
 
         let adapter = match target.as_str() {
             s if s.starts_with("client_") => {
-                include_bytes!("wasi_snapshot_preview1.command.wasm").to_vec()
+                wasi_preview1_component_adapter_provider::WASI_SNAPSHOT_PREVIEW1_COMMAND_ADAPTER
             }
             s if s.starts_with("server_") => {
-                include_bytes!("wasi_snapshot_preview1.proxy.wasm").to_vec()
+                wasi_preview1_component_adapter_provider::WASI_SNAPSHOT_PREVIEW1_PROXY_ADAPTER
             }
             other => panic!("unknown type {other}"),
         };
 
-        let path = compile_component(&wasm, &adapter)?;
+        let path = compile_component(&wasm, adapter)?;
         generated_code += &format!("pub const {camel}_COMPONENT: &str = {path:?};\n");
     }
 
