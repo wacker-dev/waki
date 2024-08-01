@@ -8,10 +8,10 @@ publish = false
 crate-type = ["cdylib"]
 
 [package.metadata.component]
-adapter = "wasi_snapshot_preview1.proxy.wasm"
+proxy = true
 
 [dependencies]
-waki = "0.3.0"
+waki = "0.3.1"
 
 # reduce wasm binary size
 [profile.release]
