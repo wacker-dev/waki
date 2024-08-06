@@ -1,5 +1,3 @@
-#![cfg_attr(docsrs, feature(doc_cfg))]
-
 //! # waki
 //!
 //! HTTP client and server library for WASI.
@@ -32,11 +30,12 @@
 //! }
 //! ```
 
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+
 mod body;
 mod client;
 mod common;
 #[cfg(feature = "multipart")]
-#[cfg_attr(docsrs, doc(cfg(feature = "multipart")))]
 pub mod multipart;
 mod request;
 mod response;

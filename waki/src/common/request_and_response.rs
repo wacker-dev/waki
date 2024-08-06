@@ -62,7 +62,6 @@ macro_rules! impl_common_get_methods {
             /// # }
             /// ```
             #[cfg(feature = "json")]
-            #[cfg_attr(docsrs, doc(cfg(feature = "json")))]
             pub fn json<T: serde::de::DeserializeOwned>(self) -> Result<T> {
                 Ok(serde_json::from_slice(self.body()?.as_ref())?)
             }
@@ -78,7 +77,6 @@ macro_rules! impl_common_get_methods {
             ///
             /// This requires the `multipart` feature enabled.
             #[cfg(feature = "multipart")]
-            #[cfg_attr(docsrs, doc(cfg(feature = "multipart")))]
             pub fn multipart(self) -> Result<HashMap<String, Part>> {
                 match self.headers.get(CONTENT_TYPE) {
                     Some(header) => {
@@ -204,7 +202,6 @@ macro_rules! impl_common_set_methods {
             /// # }
             /// ```
             #[cfg(feature = "json")]
-            #[cfg_attr(docsrs, doc(cfg(feature = "json")))]
             pub fn json<T: Serialize + ?Sized>(mut self, json: &T) -> Self {
                 let mut err = None;
                 if let Ok(ref mut inner) = self.inner {
@@ -275,7 +272,6 @@ macro_rules! impl_common_set_methods {
             /// # }
             /// ```
             #[cfg(feature = "multipart")]
-            #[cfg_attr(docsrs, doc(cfg(feature = "multipart")))]
             pub fn multipart(mut self, form: Form) -> Self {
                 if let Ok(ref mut inner) = self.inner {
                     inner.headers.insert(

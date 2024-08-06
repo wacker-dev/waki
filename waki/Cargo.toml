@@ -12,7 +12,6 @@ license.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 waki-macros.workspace = true
