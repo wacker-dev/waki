@@ -5,43 +5,23 @@
 # This script is also executed on CI to ensure that everything is up-to-date.
 set -ex
 
-# The make_vendor function takes a base path (e.g., "wasi") and a list
-# of packages in the format "name@tag". It constructs the full destination
-# path, downloads the tarballs from GitHub, extracts the relevant files, and
-# removes any unwanted directories.
-make_vendor() {
-  local packages=$1
-  local path="waki/wit/deps"
+# Space-separated list of wasi proposals that are vendored here along with the
+# tag that they're all vendored at.
+#
+# This assumes that the repositories all have the pattern:
+# https://github.com/WebAssembly/wasi-$repo
+# and every repository has a tag `v$tag` here. That is currently done as part
+# of the WASI release process.
+repos="cli clocks filesystem http io random sockets"
+tag=0.2.1
+dst=waki/wit/deps
 
-  rm -rf $path
-  mkdir -p $path
+rm -rf $dst
+mkdir -p $dst
 
-  for package in $packages; do
-    IFS='@' read -r repo tag <<< "$package"
-    mkdir -p $path/$repo
-    cached_extracted_dir="$cache_dir/$repo-$tag"
-
-    if [[ ! -d $cached_extracted_dir ]]; then
-      mkdir -p $cached_extracted_dir
-      curl -sL https://github.com/WebAssembly/wasi-$repo/archive/$tag.tar.gz | \
-        tar xzf - --strip-components=1 -C $cached_extracted_dir
-      rm -rf $cached_extracted_dir/wit/deps*
-    fi
-
-    cp -r $cached_extracted_dir/wit/* $path/$repo
-  done
-}
-
-cache_dir=$(mktemp -d)
-
-make_vendor "
-  cli@v0.2.0
-  clocks@v0.2.0
-  filesystem@v0.2.0
-  io@v0.2.0
-  random@v0.2.0
-  sockets@v0.2.0
-  http@v0.2.0
-"
-
-rm -rf $cache_dir
+for repo in $repos; do
+  mkdir $dst/$repo
+  curl -L https://github.com/WebAssembly/wasi-$repo/archive/refs/tags/v$tag.tar.gz | \
+    tar xzf - --strip-components=2 -C $dst/$repo wasi-$repo-$tag/wit
+  rm -rf $dst/$repo/deps*
+done
