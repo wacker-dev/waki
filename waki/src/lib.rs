@@ -46,6 +46,7 @@ pub mod bindings {
         path: "wit",
         world: "http",
         pub_export_macro: true,
+        generate_all,
     });
 }
 
