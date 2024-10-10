@@ -1,5 +1,5 @@
 package wacker-dev:waki;
 
 world http {
-  include wasi:http/proxy@0.2.1;
+  include wasi:http/proxy@0.2.2;
 }
