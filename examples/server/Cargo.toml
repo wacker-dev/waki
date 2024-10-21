@@ -2,6 +2,7 @@
 name = "http-server"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.82"
 publish = false
 
 [lib]
@@ -11,7 +12,7 @@ crate-type = ["cdylib"]
 proxy = true
 
 [dependencies]
-waki = "0.3.1"
+waki = "0.4.0"
 
 # reduce wasm binary size
 [profile.release]

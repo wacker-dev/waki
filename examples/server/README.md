@@ -5,22 +5,22 @@ with the [waki](https://github.com/wacker-dev/waki) library.
 
 ## Build
 
-First, install [cargo component](https://github.com/bytecodealliance/cargo-component):
+Requires Rust 1.82+.
 
 ```
-cargo install cargo-component@0.15.0
+$ rustup target add wasm32-wasip2
 ```
 
-Then execute the following command to compile it into a WASM program:
+Use the following command to compile it into a WASM program:
 
 ```
-$ cargo component build
+$ cargo build
 ```
 
 Or use `--release` option to build it in release mode:
 
 ```
-$ cargo component build --release
+$ cargo build --release
 ```
 
 ## Run

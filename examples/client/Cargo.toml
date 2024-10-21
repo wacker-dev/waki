@@ -2,10 +2,11 @@
 name = "http-client"
 version = "0.0.0"
 edition = "2021"
+rust-version = "1.82"
 publish = false
 
 [dependencies]
-waki = { version = "0.3.1", features = ["json", "multipart"] }
+waki = { version = "0.4.0", features = ["json", "multipart"] }
 serde = { version = "1.0.202", features = ["derive"] }
 
 # reduce wasm binary size
