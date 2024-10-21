@@ -7,6 +7,7 @@ use crate::{
 };
 use anyhow::{anyhow, Error, Result};
 use serde::Serialize;
+use std::borrow::Borrow;
 use std::collections::HashMap;
 
 macro_rules! impl_common_get_methods {
@@ -68,7 +69,7 @@ macro_rules! impl_common_get_methods {
 
             /// Parse the body as form data.
             pub fn form(self) -> Result<HashMap<String, String>> {
-                Ok(serde_urlencoded::from_bytes(self.body()?.as_ref())?)
+                Ok(form_urlencoded::parse(self.body()?.as_ref()).into_owned().collect())
             }
 
             /// Parse the body as multipart/form-data.
@@ -223,23 +224,24 @@ macro_rules! impl_common_set_methods {
             /// # use waki::ResponseBuilder;
             /// # fn run() {
             /// # let r = ResponseBuilder::new();
-            /// r.form(&[("a", "b"), ("c", "d")]);
+            /// r.form([("a", "b"), ("c", "d")]);
             /// # }
             /// ```
-            pub fn form<T: Serialize + ?Sized>(mut self, form: &T) -> Self {
-                let mut err = None;
+            pub fn form<K, V, I>(mut self, form: I) -> Self
+            where
+                K: AsRef<str>,
+                V: AsRef<str>,
+                I: IntoIterator,
+                I::Item: Borrow<(K, V)>,
+            {
                 if let Ok(ref mut inner) = self.inner {
                     inner.headers.insert(
                         CONTENT_TYPE,
                         "application/x-www-form-urlencoded".parse().unwrap(),
                     );
-                    match serde_urlencoded::to_string(form) {
-                        Ok(data) => inner.body = Body::Bytes(data.into()),
-                        Err(e) => err = Some(e.into()),
-                    }
-                }
-                if let Some(e) = err {
-                    self.inner = Err(e);
+                    let mut serializer = form_urlencoded::Serializer::new(String::new());
+                    serializer.extend_pairs(form);
+                    inner.body = Body::Bytes(serializer.finish().into())
                 }
                 self
             }

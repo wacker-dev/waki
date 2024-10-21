@@ -6,16 +6,15 @@ on:
       - 'release-**'
   pull_request:
 jobs:
-  ci:
-    name: Lint and test
+  lint:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.79.0
+        uses: dtolnay/rust-toolchain@1.82.0
         with:
-          targets: wasm32-wasip1
+          targets: wasm32-wasip2
           components: clippy, rustfmt
       - name: Re-vendor WIT
         run: |
@@ -25,5 +24,24 @@ jobs:
         run: cargo fmt --all -- --check
       - name: cargo clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
+  test:
+    needs: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        include:
+          - rust: "1.81"
+            targets: "wasm32-wasip1"
+          - rust: "1.82"
+            targets: "wasm32-wasip2"
+    name: Test on target ${{ matrix.targets }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+          targets: ${{ matrix.targets }}
       - name: cargo test
         run: cargo test
