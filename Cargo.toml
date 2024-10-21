@@ -8,7 +8,7 @@ members = [
 exclude = ["examples"]
 
 [workspace.package]
-version = "0.3.2"
+version = "0.4.0"
 authors = ["Xinzhao Xu"]
 edition = "2021"
 categories = ["wasm"]
@@ -19,7 +19,7 @@ description = "HTTP client and server library for WASI"
 readme = "README.md"
 
 [workspace.dependencies]
-waki-macros = { path = "waki-macros", version = "0.3.2" }
+waki-macros = { path = "waki-macros", version = "0.4.0" }
 
 anyhow = "1.0.89"
 serde = "1.0.210"
