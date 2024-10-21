@@ -1,7 +1,7 @@
 use crate::{
     bindings::wasi::http::{
         outgoing_handler,
-        types::{IncomingRequest, OutgoingBody, OutgoingRequest, RequestOptions, Scheme},
+        types::{IncomingRequest, OutgoingBody, OutgoingRequest, RequestOptions},
     },
     body::Body,
     header::HeaderMap,
@@ -9,10 +9,13 @@ use crate::{
 };
 
 use anyhow::{anyhow, Error, Result};
-use serde::Serialize;
+use http::{
+    uri::{Parts, PathAndQuery},
+    Uri,
+};
+use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::time::Duration;
-use url::Url;
 
 pub struct RequestBuilder {
     // all errors generated while building the request will be deferred and returned when `send` the request.
@@ -20,32 +23,48 @@ pub struct RequestBuilder {
 }
 
 impl RequestBuilder {
-    pub fn new(method: Method, url: &str) -> Self {
+    pub fn new(method: Method, uri: &str) -> Self {
         Self {
-            inner: Url::parse(url)
-                .map_or_else(|e| Err(Error::new(e)), |url| Ok(Request::new(method, url))),
+            inner: uri.parse::<Uri>().map_or_else(
+                |e| Err(Error::new(e)),
+                |uri| Ok(Request::new(method, uri.into_parts())),
+            ),
         }
     }
 
-    /// Modify the query string of the Request URL.
+    /// Modify the query string of the Request URI.
     ///
     /// ```
     /// # use anyhow::Result;
     /// # use waki::Client;
     /// # fn run() -> Result<()> {
     /// let resp = Client::new().get("https://httpbin.org/get")
-    ///     .query(&[("a", "b"), ("c", "d")])
+    ///     .query([("a", "b"), ("c", "d")])
     ///     .send()?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn query<T: Serialize + ?Sized>(mut self, query: &T) -> Self {
+    pub fn query<K, V, I>(mut self, args: I) -> Self
+    where
+        K: AsRef<str>,
+        V: AsRef<str>,
+        I: IntoIterator,
+        I::Item: Borrow<(K, V)>,
+    {
         let mut err = None;
         if let Ok(ref mut req) = self.inner {
-            let mut pairs = req.url.query_pairs_mut();
-            let serializer = serde_urlencoded::Serializer::new(&mut pairs);
-            if let Err(e) = query.serialize(serializer) {
-                err = Some(e.into());
+            let (path, query) = match &req.uri.path_and_query {
+                Some(path_and_query) => (
+                    path_and_query.path(),
+                    path_and_query.query().unwrap_or_default(),
+                ),
+                None => ("", ""),
+            };
+            let mut serializer = form_urlencoded::Serializer::new(query.to_string());
+            serializer.extend_pairs(args);
+            match PathAndQuery::try_from(format!("{}?{}", path, serializer.finish())) {
+                Ok(path_and_query) => req.uri.path_and_query = Some(path_and_query),
+                Err(e) => err = Some(e.into()),
             }
         }
         if let Some(e) = err {
@@ -90,7 +109,7 @@ impl RequestBuilder {
 
 pub struct Request {
     method: Method,
-    url: Url,
+    uri: Parts,
     pub(crate) headers: HeaderMap,
     pub(crate) body: Body,
     connect_timeout: Option<u64>,
@@ -101,16 +120,29 @@ impl TryFrom<IncomingRequest> for Request {
 
     fn try_from(req: IncomingRequest) -> std::result::Result<Self, Self::Error> {
         let method = req.method();
-        let url = Url::parse(
-            format!(
-                "{}://{}{}",
-                req.scheme().unwrap_or(Scheme::Http),
-                req.authority().unwrap_or("localhost".into()),
-                req.path_with_query().unwrap_or_default()
-            )
-            .as_str(),
-        )
-        .unwrap();
+
+        let mut parts = Parts::default();
+        if let Some(scheme) = req.scheme() {
+            parts.scheme = Some(
+                scheme
+                    .try_into()
+                    .map_err(|_| ErrorCode::HttpRequestUriInvalid)?,
+            );
+        }
+        if let Some(authority) = req.authority() {
+            parts.authority = Some(
+                authority
+                    .try_into()
+                    .map_err(|_| ErrorCode::HttpRequestUriInvalid)?,
+            );
+        }
+        if let Some(path_with_query) = req.path_with_query() {
+            parts.path_and_query = Some(
+                path_with_query
+                    .try_into()
+                    .map_err(|_| ErrorCode::HttpRequestUriInvalid)?,
+            );
+        }
 
         let headers = req
             .headers_map()
@@ -121,7 +153,7 @@ impl TryFrom<IncomingRequest> for Request {
 
         Ok(Self {
             method,
-            url,
+            uri: parts,
             headers,
             body: Body::Stream(incoming_body.into()),
             connect_timeout: None,
@@ -130,23 +162,18 @@ impl TryFrom<IncomingRequest> for Request {
 }
 
 impl Request {
-    pub fn new(method: Method, url: Url) -> Self {
+    pub fn new(method: Method, uri: Parts) -> Self {
         Self {
             method,
-            url,
+            uri,
             headers: HeaderMap::new(),
             body: Body::Bytes(vec![]),
             connect_timeout: None,
         }
     }
 
-    pub fn builder(method: Method, url: &str) -> RequestBuilder {
-        RequestBuilder::new(method, url)
-    }
-
-    /// Get the full URL of the request.
-    pub fn url(&self) -> Url {
-        self.url.clone()
+    pub fn builder(method: Method, uri: &str) -> RequestBuilder {
+        RequestBuilder::new(method, uri)
     }
 
     /// Get the HTTP method of the request.
@@ -156,32 +183,40 @@ impl Request {
 
     /// Get the path of the request.
     pub fn path(&self) -> &str {
-        self.url.path()
+        match &self.uri.path_and_query {
+            Some(path_and_query) => path_and_query.path(),
+            None => "",
+        }
     }
 
     /// Get the query string of the request.
     pub fn query(&self) -> HashMap<String, String> {
-        let query_pairs = self.url.query_pairs();
-        query_pairs.into_owned().collect()
+        match &self.uri.path_and_query {
+            Some(path_and_query) => {
+                let query_pairs =
+                    form_urlencoded::parse(path_and_query.query().unwrap_or_default().as_bytes());
+                query_pairs.into_owned().collect()
+            }
+            None => HashMap::default(),
+        }
     }
 
     fn send(self) -> Result<Response> {
         let req = OutgoingRequest::new(self.headers.try_into()?);
         req.set_method(&self.method)
             .map_err(|()| anyhow!("failed to set method"))?;
-
-        req.set_scheme(Some(&self.url.scheme().into()))
-            .map_err(|()| anyhow!("failed to set scheme"))?;
-
-        req.set_authority(Some(self.url.authority()))
-            .map_err(|()| anyhow!("failed to set authority"))?;
-
-        let path = match self.url.query() {
-            Some(query) => format!("{}?{query}", self.url.path()),
-            None => self.url.path().to_string(),
-        };
-        req.set_path_with_query(Some(&path))
-            .map_err(|()| anyhow!("failed to set path_with_query"))?;
+        if let Some(scheme) = self.uri.scheme {
+            req.set_scheme(Some(&scheme.as_str().into()))
+                .map_err(|()| anyhow!("failed to set scheme"))?;
+        }
+        if let Some(authority) = self.uri.authority {
+            req.set_authority(Some(authority.as_str()))
+                .map_err(|()| anyhow!("failed to set authority"))?;
+        }
+        if let Some(path_and_query) = self.uri.path_and_query {
+            req.set_path_with_query(Some(path_and_query.as_str()))
+                .map_err(|()| anyhow!("failed to set path_with_query"))?;
+        }
 
         let options = RequestOptions::new();
         options

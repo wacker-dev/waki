@@ -1,5 +1,4 @@
 use crate::bindings::wasi::http::types::Scheme;
-use std::fmt::{Display, Formatter, Result};
 
 impl From<&str> for Scheme {
     fn from(s: &str) -> Self {
@@ -11,12 +10,14 @@ impl From<&str> for Scheme {
     }
 }
 
-impl Display for Scheme {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        f.write_str(match self {
-            Scheme::Http => "http",
-            Scheme::Https => "https",
-            Scheme::Other(s) => s,
-        })
+impl TryInto<http::uri::Scheme> for Scheme {
+    type Error = http::uri::InvalidUri;
+
+    fn try_into(self) -> Result<http::uri::Scheme, Self::Error> {
+        match self {
+            Scheme::Http => Ok(http::uri::Scheme::HTTP),
+            Scheme::Https => Ok(http::uri::Scheme::HTTPS),
+            Scheme::Other(s) => s.as_str().try_into(),
+        }
     }
 }
