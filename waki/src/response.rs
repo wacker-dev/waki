@@ -106,7 +106,11 @@ pub fn handle_response(response_out: ResponseOutparam, response: Response) {
     let body = response.body.bytes().unwrap();
     if !body.is_empty() {
         let out = outgoing_body.write().unwrap();
-        out.blocking_write_and_flush(&body).unwrap();
+        // `blocking-write-and-flush` writes up to 4096 bytes
+        let chunks = body.chunks(4096);
+        for chunk in chunks {
+            out.blocking_write_and_flush(chunk).unwrap();
+        }
     }
 
     OutgoingBody::finish(outgoing_body, None).unwrap();

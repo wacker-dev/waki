@@ -31,6 +31,19 @@ async fn json() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn large_body() -> Result<()> {
+    let req = hyper::Request::builder()
+        .uri("http://localhost")
+        .body(body::empty())?;
+
+    let resp = run_wasi_http(test_programs_artifacts::SERVER_LARGE_BODY_COMPONENT, req).await??;
+    let body = resp.into_body().to_bytes();
+    assert_eq!(body.len(), 5000);
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn multipart_form() -> Result<()> {
     let req = hyper::Request::builder()
         .uri("http://localhost")
