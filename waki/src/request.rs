@@ -10,7 +10,7 @@ use crate::{
 
 use anyhow::{anyhow, Error, Result};
 use http::{
-    uri::{Parts, PathAndQuery},
+    uri::{Authority, Parts, PathAndQuery},
     Uri,
 };
 use std::borrow::Borrow;
@@ -199,6 +199,11 @@ impl Request {
             }
             None => HashMap::default(),
         }
+    }
+
+    /// Get the authority of the request.
+    pub fn authority(&self) -> &Option<Authority> {
+        &self.uri.authority
     }
 
     fn send(self) -> Result<Response> {
