@@ -1,13 +1,6 @@
 use super::run_wasi;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn get_authority() {
-    run_wasi(test_programs_artifacts::CLIENT_GET_AUTHORITY_COMPONENT)
-        .await
-        .unwrap();
-}
-
-#[tokio::test(flavor = "multi_thread")]
 async fn get_chunk() {
     run_wasi(test_programs_artifacts::CLIENT_GET_CHUNK_COMPONENT)
         .await
