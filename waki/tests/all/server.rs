@@ -88,6 +88,21 @@ async fn status_code() -> Result<()> {
     Ok(())
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn authority() -> Result<()> {
+    let req = hyper::Request::builder()
+        .uri("http://127.0.0.1:3000")
+        .body(body::empty())?;
+
+    let resp: http::Response<http_body_util::Collected<bytes::Bytes>> =
+        run_wasi_http(test_programs_artifacts::SERVER_AUTHORITY_COMPONENT, req).await??;
+    let body = resp.into_body().to_bytes();
+    let body = std::str::from_utf8(&body)?;
+    assert_eq!(body, "Hello, 127.0.0.1:3000!");
+
+    Ok(())
+}
+
 mod body {
     use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
     use hyper::{body::Bytes, Error};
