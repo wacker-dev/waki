@@ -28,7 +28,7 @@ $ cargo build --release
 After compilation, you can use [wasmtime](https://github.com/bytecodealliance/wasmtime) to run it:
 
 ```
-$ wasmtime -S http target/wasm32-wasip1/debug/http-client.wasm
+$ wasmtime -S http target/wasm32-wasip2/debug/http-client.wasm
 
 GET https://httpbin.org/get, status code: 200, body:
 {

@@ -6,7 +6,7 @@ rust-version = "1.82"
 publish = false
 
 [dependencies]
-waki = { version = "0.4.0", features = ["json", "multipart"] }
+waki = { version = "0.4.2", features = ["json", "multipart"] }
 serde = { version = "1.0.202", features = ["derive"] }
 
 # reduce wasm binary size
