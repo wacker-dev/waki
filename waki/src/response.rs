@@ -15,12 +15,14 @@ pub struct ResponseBuilder {
 }
 
 impl Default for ResponseBuilder {
+    #[inline]
     fn default() -> Self {
         Self::new()
     }
 }
 
 impl ResponseBuilder {
+    #[inline]
     pub fn new() -> Self {
         Self {
             inner: Ok(Response::new()),
@@ -30,6 +32,7 @@ impl ResponseBuilder {
     /// Set the status code for the response.
     ///
     /// Default value: 200.
+    #[inline]
     pub fn status_code(mut self, status_code: u16) -> Self {
         if let Ok(ref mut resp) = self.inner {
             resp.status_code = status_code;
@@ -38,6 +41,7 @@ impl ResponseBuilder {
     }
 
     /// Build the Response.
+    #[inline]
     pub fn build(self) -> Result<Response, ErrorCode> {
         match self.inner {
             Ok(inner) => Ok(inner),
@@ -53,6 +57,7 @@ pub struct Response {
 }
 
 impl Default for Response {
+    #[inline]
     fn default() -> Self {
         Self::new()
     }
@@ -77,6 +82,7 @@ impl TryFrom<IncomingResponse> for Response {
 }
 
 impl Response {
+    #[inline]
     pub fn new() -> Self {
         Self {
             headers: HeaderMap::new(),
@@ -85,10 +91,12 @@ impl Response {
         }
     }
 
+    #[inline]
     pub fn builder() -> ResponseBuilder {
         ResponseBuilder::new()
     }
 
+    #[inline]
     /// Get the status code of the response.
     pub fn status_code(&self) -> u16 {
         self.status_code

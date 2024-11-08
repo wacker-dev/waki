@@ -12,6 +12,7 @@ pub struct IncomingBodyStream {
 }
 
 impl From<IncomingBody> for IncomingBodyStream {
+    #[inline]
     fn from(body: IncomingBody) -> Self {
         Self {
             // The stream() method can only be called once
@@ -37,6 +38,7 @@ pub enum Body {
 }
 
 impl Body {
+    #[inline]
     pub fn chunk(&self, len: u64) -> Result<Option<Vec<u8>>> {
         match &self {
             Body::Bytes(_) => Ok(None),

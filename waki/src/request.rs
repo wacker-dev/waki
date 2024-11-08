@@ -23,6 +23,7 @@ pub struct RequestBuilder {
 }
 
 impl RequestBuilder {
+    #[inline]
     pub fn new(method: Method, uri: &str) -> Self {
         Self {
             inner: uri.parse::<Uri>().map_or_else(
@@ -86,6 +87,7 @@ impl RequestBuilder {
     /// # Ok(())
     /// # }
     /// ```
+    #[inline]
     pub fn connect_timeout(mut self, timeout: Duration) -> Self {
         if let Ok(ref mut req) = self.inner {
             req.connect_timeout = Some(timeout.as_nanos() as u64);
@@ -94,11 +96,13 @@ impl RequestBuilder {
     }
 
     /// Build the Request.
+    #[inline]
     pub fn build(self) -> Result<Request> {
         self.inner
     }
 
     /// Send the Request, returning a [`Response`].
+    #[inline]
     pub fn send(self) -> Result<Response> {
         match self.inner {
             Ok(req) => req.send(),
@@ -162,6 +166,7 @@ impl TryFrom<IncomingRequest> for Request {
 }
 
 impl Request {
+    #[inline]
     pub fn new(method: Method, uri: Parts) -> Self {
         Self {
             method,
@@ -172,16 +177,19 @@ impl Request {
         }
     }
 
+    #[inline]
     pub fn builder(method: Method, uri: &str) -> RequestBuilder {
         RequestBuilder::new(method, uri)
     }
 
     /// Get the HTTP method of the request.
+    #[inline]
     pub fn method(&self) -> Method {
         self.method.clone()
     }
 
     /// Get the path of the request.
+    #[inline]
     pub fn path(&self) -> &str {
         match &self.uri.path_and_query {
             Some(path_and_query) => path_and_query.path(),
@@ -202,6 +210,7 @@ impl Request {
     }
 
     /// Get the authority of the request.
+    #[inline]
     pub fn authority(&self) -> &Option<Authority> {
         &self.uri.authority
     }

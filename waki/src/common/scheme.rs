@@ -1,6 +1,7 @@
 use crate::bindings::wasi::http::types::Scheme;
 
 impl From<&str> for Scheme {
+    #[inline]
     fn from(s: &str) -> Self {
         match s {
             "http" => Scheme::Http,
@@ -13,6 +14,7 @@ impl From<&str> for Scheme {
 impl TryInto<http::uri::Scheme> for Scheme {
     type Error = http::uri::InvalidUri;
 
+    #[inline]
     fn try_into(self) -> Result<http::uri::Scheme, Self::Error> {
         match self {
             Scheme::Http => Ok(http::uri::Scheme::HTTP),
