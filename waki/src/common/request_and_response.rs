@@ -14,11 +14,13 @@ macro_rules! impl_common_get_methods {
     ($($t:ty),+ $(,)?) => ($(
         impl $t {
             /// Get the header.
+            #[inline]
             pub fn header<K: AsHeaderName>(&self, key: K) -> Option<&HeaderValue> {
                 self.headers.get(key)
             }
 
             /// Get headers.
+            #[inline]
             pub fn headers(&self) -> &HeaderMap {
                 &self.headers
             }
@@ -29,6 +31,7 @@ macro_rules! impl_common_get_methods {
             ///
             /// NOTE: This method is only for incoming requests/responses, if you call it on an
             /// outgoing request/response it will always return None.
+            #[inline]
             pub fn chunk(&self, len: u64) -> Result<Option<Vec<u8>>> {
                 self.body.chunk(len)
             }
@@ -36,6 +39,7 @@ macro_rules! impl_common_get_methods {
             /// Get the full body.
             ///
             /// It will block until the stream is closed.
+            #[inline]
             pub fn body(self) -> Result<Vec<u8>> {
                 self.body.bytes()
             }
@@ -181,6 +185,7 @@ macro_rules! impl_common_set_methods {
             /// r.body("hello");
             /// # }
             /// ```
+            #[inline]
             pub fn body<V: Into<Vec<u8>>>(mut self, body: V) -> Self {
                 if let Ok(ref mut inner) = self.inner {
                     inner.body = Body::Bytes(body.into());
