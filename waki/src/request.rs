@@ -3,7 +3,7 @@ use crate::{
         outgoing_handler,
         types::{IncomingRequest, OutgoingBody, OutgoingRequest, RequestOptions},
     },
-    body::Body,
+    body::{write_to_outgoing_body, Body},
     header::HeaderMap,
     ErrorCode, Method, Response,
 };
@@ -241,12 +241,7 @@ impl Request {
             .body()
             .map_err(|_| anyhow!("outgoing request write failed"))?;
         let body = self.body.bytes()?;
-        if !body.is_empty() {
-            let request_body = outgoing_body
-                .write()
-                .map_err(|_| anyhow!("outgoing request write failed"))?;
-            request_body.blocking_write_and_flush(&body)?;
-        }
+        write_to_outgoing_body(&outgoing_body, body.as_slice())?;
         OutgoingBody::finish(outgoing_body, None)?;
 
         let future_response = outgoing_handler::handle(req, Some(options))?;

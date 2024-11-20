@@ -1,5 +1,5 @@
 use crate::bindings::wasi::{
-    http::types::{IncomingBody, InputStream},
+    http::types::{IncomingBody, InputStream, OutgoingBody},
     io::streams::StreamError,
 };
 
@@ -58,4 +58,31 @@ impl Body {
             }
         }
     }
+}
+
+pub(crate) fn write_to_outgoing_body(outgoing_body: &OutgoingBody, mut buf: &[u8]) -> Result<()> {
+    if buf.is_empty() {
+        return Ok(());
+    }
+
+    let out = outgoing_body
+        .write()
+        .map_err(|_| anyhow!("outgoing request write failed"))?;
+
+    let pollable = out.subscribe();
+    while !buf.is_empty() {
+        pollable.block();
+
+        let permit = out.check_write()?;
+        let len = buf.len().min(permit as usize);
+        let (chunk, rest) = buf.split_at(len);
+        buf = rest;
+
+        out.write(chunk)?;
+    }
+
+    out.flush()?;
+    pollable.block();
+    let _ = out.check_write()?;
+    Ok(())
 }
