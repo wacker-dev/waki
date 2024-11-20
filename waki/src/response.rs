@@ -2,7 +2,7 @@ use crate::{
     bindings::wasi::http::types::{
         IncomingResponse, OutgoingBody, OutgoingResponse, ResponseOutparam,
     },
-    body::Body,
+    body::{write_to_outgoing_body, Body},
     header::HeaderMap,
     ErrorCode,
 };
@@ -112,14 +112,6 @@ pub fn handle_response(response_out: ResponseOutparam, response: Response) {
     ResponseOutparam::set(response_out, Ok(outgoing_response));
 
     let body = response.body.bytes().unwrap();
-    if !body.is_empty() {
-        let out = outgoing_body.write().unwrap();
-        // `blocking-write-and-flush` writes up to 4096 bytes
-        let chunks = body.chunks(4096);
-        for chunk in chunks {
-            out.blocking_write_and_flush(chunk).unwrap();
-        }
-    }
-
+    write_to_outgoing_body(&outgoing_body, body.as_slice()).unwrap();
     OutgoingBody::finish(outgoing_body, None).unwrap();
 }
