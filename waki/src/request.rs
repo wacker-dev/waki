@@ -232,19 +232,20 @@ impl Request {
                 .map_err(|()| anyhow!("failed to set path_with_query"))?;
         }
 
+        let outgoing_body = req
+            .body()
+            .map_err(|_| anyhow!("outgoing request write failed"))?;
+
         let options = RequestOptions::new();
         options
             .set_connect_timeout(self.connect_timeout)
             .map_err(|()| anyhow!("failed to set connect_timeout"))?;
+        let future_response = outgoing_handler::handle(req, Some(options))?;
 
-        let outgoing_body = req
-            .body()
-            .map_err(|_| anyhow!("outgoing request write failed"))?;
         let body = self.body.bytes()?;
         write_to_outgoing_body(&outgoing_body, body.as_slice())?;
         OutgoingBody::finish(outgoing_body, None)?;
 
-        let future_response = outgoing_handler::handle(req, Some(options))?;
         let incoming_response = match future_response.get() {
             Some(result) => result.map_err(|()| anyhow!("response already taken"))?,
             None => {
